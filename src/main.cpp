@@ -193,7 +193,7 @@ public:
         return nullptr;
     }
 
-    bool init() {
+    bool init() override {
         if (!CCNode::init()) return false;
         this->setID("fps-enforcer"_spr);
         m_windowStart = fpsb::nowSec();
@@ -289,7 +289,7 @@ public:
         return nullptr;
     }
 
-    bool init() {
+    bool init() override {
         if (!CCNode::init()) return false;
         this->setID("fps-launcher"_spr);
         this->setContentSize({kSize, kSize});
@@ -664,7 +664,7 @@ public:
         return nullptr;
     }
 
-    bool init() {
+    bool init() override {
         if (!CCNode::init()) return false;
         this->setID("fps-panel"_spr);
         this->setContentSize({W, H});
@@ -676,7 +676,7 @@ public:
         auto ws = CCDirector::sharedDirector()->getWinSize();
         CCPoint start = {ws.width / 2.f, ws.height / 2.f};
         if (fpsb::cfg.panelX >= 0.0 && fpsb::cfg.panelY >= 0.0) {
-            start = {static_cast<float>(fpsb::cfg.panelX), static_cast<float>(fpsb::cfg.panelY)};
+            start = CCPoint(static_cast<float>(fpsb::cfg.panelX), static_cast<float>(fpsb::cfg.panelY));
         }
         m_target = this->clampPos(start);
         this->setPosition(m_target);
