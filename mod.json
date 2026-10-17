@@ -8,5 +8,45 @@
 	"name": "Mobile FPS Bypass",
 	"developer": "user",
 	"description": "FPS bypass for Android32 and Android64 with a smooth draggable menu.",
-	"tags": ["utility"]
+	"tags": [
+		"utility"
+	],
+	"settings": {
+		"enabled": {
+			"type": "bool",
+			"name": "Enable FPS Bypass",
+			"description": "Turns the bypass on or off.",
+			"default": true
+		},
+		"fps": {
+			"type": "int",
+			"name": "Target FPS",
+			"description": "10 to 1000.",
+			"default": 120,
+			"min": 10,
+			"max": 1000,
+			"control": {
+				"input": true,
+				"slider": true
+			}
+		},
+		"disable-vsync": {
+			"type": "bool",
+			"name": "Disable V-Sync",
+			"description": "Lets the game render above the screen refresh rate.",
+			"default": true
+		},
+		"show-button": {
+			"type": "bool",
+			"name": "Show floating button",
+			"description": "Draggable bubble that opens the FPS menu.",
+			"default": true
+		},
+		"hide-in-level": {
+			"type": "bool",
+			"name": "Hide button in level",
+			"description": "Hides the bubble while playing; pause to see it.",
+			"default": false
+		}
+	}
 }
