@@ -1,0 +1,12 @@
+{
+	"geode": "5.0.0",
+	"gd": {
+		"android": "2.2081"
+	},
+	"version": "v1.0.0",
+	"id": "user.mobile-fps-bypass",
+	"name": "Mobile FPS Bypass",
+	"developer": "user",
+	"description": "FPS bypass for Android32 and Android64 with a smooth draggable menu.",
+	"tags": ["utility"]
+}
