@@ -405,7 +405,9 @@ public:
 class FPSPanel : public CCNode, public CCTouchDelegate {
 public:
     static constexpr float W = 330.f;
-    static constexpr float H = 294.f;
+    static constexpr float H = 312.f;
+    static constexpr float SX0 = 34.f;          // slider track start
+    static constexpr float SX1 = W - 34.f;      // slider track end
 
 protected:
     enum class Kind { Toggle, Button, Stepper };
@@ -439,6 +441,12 @@ protected:
     double m_liveTimer = 0.0;
     CCLabelBMFont* m_value = nullptr;
     CCLabelBMFont* m_live = nullptr;
+    CCLabelBMFont* m_note = nullptr;
+    CCLayerColor* m_fill = nullptr;
+    CCLayerColor* m_knob = nullptr;
+    float m_sliderY = 0.f;
+    bool m_sliding = false;
+    double m_lastChange = 0.0;
 
     CCPoint clampPos(CCPoint p) {
         auto ws = CCDirector::sharedDirector()->getWinSize();
@@ -494,7 +502,7 @@ protected:
         Control c;
         c.kind = Kind::Toggle;
         c.vis = wrap;
-        c.hit = CCRect(10.f, y - 17.f, W - 20.f, 34.f);
+        c.hit = CCRect(10.f, y - 13.f, W - 20.f, 26.f);
         c.fire = std::move(flip);
         c.state = std::move(get);
         c.on = on;
@@ -546,7 +554,18 @@ protected:
         this->commit();
     }
 
+    // Slider uses a curve (finer control at low FPS so 10-30 are easy to hit).
+    void setFromSlider(float localX) {
+        float t = std::clamp((localX - SX0) / (SX1 - SX0), 0.f, 1.f);
+        double v = std::round(10.0 + 990.0 * t * t);
+        if (v != std::round(fpsb::cfg.fps)) {
+            fpsb::cfg.fps = v;
+            this->commit();
+        }
+    }
+
     void commit() {
+        m_lastChange = fpsb::nowSec();
         fpsb::changed();
         this->refreshAll();
     }
@@ -565,6 +584,27 @@ protected:
         }
         m_value->setString(fmt::format("{}", static_cast<int>(std::round(fpsb::cfg.fps))).c_str());
         m_value->setColor(fpsb::cfg.enabled ? ccc3(120, 255, 140) : ccc3(170, 170, 170));
+
+        // Slider visuals
+        float t = std::sqrt(std::clamp((static_cast<float>(fpsb::cfg.fps) - 10.f) / 990.f, 0.f, 1.f));
+        float x = SX0 + t * (SX1 - SX0);
+        m_fill->setContentSize({std::max(t * (SX1 - SX0), 0.5f), 6.f});
+        m_knob->setPosition({x - 6.f, m_sliderY - 12.f});
+
+        // "Device limit" note
+        bool settled = fpsb::nowSec() - m_lastChange > 1.5;
+        double got = fpsb::measuredFps;
+        if (settled && fpsb::cfg.enabled && got > 1.0 && got < fpsb::cfg.fps * 0.88) {
+            int g = static_cast<int>(std::round(got));
+            m_note->setString(
+                fpsb::cfg.killVsync
+                    ? fmt::format("Device limit reached (~{} FPS)", g).c_str()
+                    : fmt::format("Capped at ~{} FPS - try turning V-Sync off", g).c_str()
+            );
+            m_note->setVisible(true);
+        } else {
+            m_note->setVisible(false);
+        }
     }
 
     void build() {
@@ -577,32 +617,44 @@ protected:
         this->addChild(bg, 0);
 
         // Title bar + divider
-        this->addLabel("FPS Bypass", W / 2.f, H - 22.f, 0.62f, false);
+        this->addLabel("FPS Bypass", W / 2.f, H - 20.f, 0.58f, false);
         auto div = CCLayerColor::create(ccc4(255, 255, 255, 50), W - 30.f, 2.f);
-        div->setPosition({15.f, H - 42.f});
+        div->setPosition({15.f, H - 38.f});
         this->addChild(div, 1);
 
-        auto hint = this->addLabel("drag anywhere empty to move", W / 2.f, H - 53.f, 0.28f, false);
+        auto hint = this->addLabel("drag empty space to move", W / 2.f, H - 47.f, 0.26f, false);
         hint->setColor({130, 130, 130});
 
         // Close
-        this->addButton("X", W - 22.f, H - 22.f, 26.f, 26.f, {190, 55, 55}, 0.5f, Kind::Button,
+        this->addButton("X", W - 22.f, H - 20.f, 26.f, 26.f, {190, 55, 55}, 0.5f, Kind::Button,
             [this]() { this->setOpen(false); });
 
         // Enable
-        this->addToggleRow("Enable FPS Bypass", H - 76.f,
+        this->addToggleRow("Enable FPS Bypass", H - 68.f,
             []() { return fpsb::cfg.enabled; },
             [this]() { fpsb::cfg.enabled = !fpsb::cfg.enabled; this->commit(); });
 
         // Big value + steppers
-        float vy = H - 120.f;
-        m_value = this->addLabel("120", W / 2.f, vy, 1.0f, false);
-        this->addLabel("target FPS", W / 2.f, vy - 24.f, 0.32f, false)->setColor({150, 150, 150});
+        float vy = H - 104.f;
+        m_value = this->addLabel("120", W / 2.f, vy, 0.9f, false);
+        this->addLabel("target FPS", W / 2.f, vy - 22.f, 0.28f, false)->setColor({150, 150, 150});
 
-        this->addButton("-", W / 2.f - 92.f, vy, 54.f, 38.f, {55, 55, 62}, 0.9f, Kind::Stepper,
+        this->addButton("-", W / 2.f - 92.f, vy, 54.f, 34.f, {55, 55, 62}, 0.8f, Kind::Stepper,
             [this]() { this->adjust(-1); });
-        this->addButton("+", W / 2.f + 92.f, vy, 54.f, 38.f, {55, 55, 62}, 0.9f, Kind::Stepper,
+        this->addButton("+", W / 2.f + 92.f, vy, 54.f, 34.f, {55, 55, 62}, 0.8f, Kind::Stepper,
             [this]() { this->adjust(+1); });
+
+        // Slider (10 - 1000)
+        m_sliderY = H - 146.f;
+        auto track = CCLayerColor::create(ccc4(60, 60, 68, 255), SX1 - SX0, 6.f);
+        track->setPosition({SX0, m_sliderY - 3.f});
+        this->addChild(track, 1);
+        m_fill = CCLayerColor::create(ccc4(120, 255, 140, 255), SX1 - SX0, 6.f);
+        m_fill->setPosition({SX0, m_sliderY - 3.f});
+        this->addChild(m_fill, 2);
+        m_knob = CCLayerColor::create(ccc4(240, 240, 240, 255), 12.f, 24.f);
+        m_knob->setPosition({SX0 - 6.f, m_sliderY - 12.f});
+        this->addChild(m_knob, 3);
 
         // Presets (two rows)
         static const int presets[13] = {30, 60, 90, 120, 144, 240, 360, 480, 560, 640, 720, 890, 1000};
@@ -610,26 +662,29 @@ protected:
             int row = i < 7 ? 0 : 1;
             int idx = i < 7 ? i : i - 7;
             int n = i < 7 ? 7 : 6;
-            float py = H - 166.f - row * 32.f;
+            float py = H - 176.f - row * 30.f;
             float cx = 37.f + (W - 74.f) * idx / static_cast<float>(n - 1);
             int v = presets[i];
             this->addButton(
-                std::to_string(v).c_str(), cx, py, 46.f, 26.f, {55, 55, 62}, 0.32f, Kind::Button,
+                std::to_string(v).c_str(), cx, py, 46.f, 24.f, {55, 55, 62}, 0.32f, Kind::Button,
                 [this, v]() { this->setFps(v); },
                 [v]() { return static_cast<int>(std::round(fpsb::cfg.fps)) == v; }
             );
         }
 
         // Toggles
-        this->addToggleRow("Disable V-Sync", H - 235.f,
+        this->addToggleRow("Disable V-Sync", H - 240.f,
             []() { return fpsb::cfg.killVsync; },
             [this]() { fpsb::cfg.killVsync = !fpsb::cfg.killVsync; this->commit(); });
-        this->addToggleRow("Hide button in level", H - 263.f,
+        this->addToggleRow("Hide button in level", H - 266.f,
             []() { return fpsb::cfg.hideInLevel; },
             [this]() { fpsb::cfg.hideInLevel = !fpsb::cfg.hideInLevel; this->commit(); });
 
-        // Live readout
-        m_live = this->addLabel("Measured: -- FPS", W / 2.f, 14.f, 0.34f, false);
+        // Device-limit note + live readout
+        m_note = this->addLabel("", W / 2.f, 24.f, 0.3f, false);
+        m_note->setColor({255, 170, 60});
+        m_note->setVisible(false);
+        m_live = this->addLabel("Measured: -- FPS", W / 2.f, 9.f, 0.32f, false);
         m_live->setColor({200, 200, 120});
 
         for (auto& c : m_controls) c.baseScale = c.vis->getScale();
@@ -645,6 +700,7 @@ protected:
             m_pressed = -1;
             if (doFire && cb) cb();
         }
+        m_sliding = false;
         if (m_dragging) {
             m_dragging = false;
             fpsb::cfg.panelX = m_target.x;
@@ -761,6 +817,13 @@ public:
         auto local = this->convertTouchToNodeSpace(t);
         if (!CCRect(0.f, 0.f, W, H).containsPoint(local)) return false;
 
+        if (CCRect(SX0 - 14.f, m_sliderY - 14.f, SX1 - SX0 + 28.f, 28.f).containsPoint(local)) {
+            m_pressed = -1;
+            m_sliding = true;
+            this->setFromSlider(local.x);
+            return true;
+        }
+
         m_pressed = -1;
         for (size_t i = 0; i < m_controls.size(); ++i) {
             if (m_controls[i].hit.containsPoint(local)) {
@@ -791,6 +854,10 @@ public:
     }
 
     void ccTouchMoved(CCTouch* t, CCEvent*) override {
+        if (m_sliding) {
+            this->setFromSlider(this->convertTouchToNodeSpace(t).x);
+            return;
+        }
         if (m_dragging) {
             auto p = this->getParent()->convertTouchToNodeSpace(t);
             m_target = this->clampPos(p + m_grab);
